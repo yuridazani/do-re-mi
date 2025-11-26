@@ -1,6 +1,6 @@
 "use client";
 import { useState } from 'react';
-import { Search, Download, Music, AlertCircle, CheckCircle, Twitter, ArrowRight, Loader2 } from 'lucide-react';
+import { Search, Download, Music, AlertCircle, CheckCircle, Twitter, ArrowRight, Loader2, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Home() {
@@ -41,18 +41,46 @@ export default function Home() {
   const handleDownload = async (mediaUrl, filename, index) => {
     setDownloading(index);
     try {
-      const response = await fetch(mediaUrl);
+      // PERBAIKAN: Fetch dengan header yang lebih compatible
+      const response = await fetch(mediaUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'video/mp4,video/*;q=0.9,*/*;q=0.8'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+
       const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
+      
+      // VALIDASI: Pastikan blob bukan corrupt
+      if (blob.size < 1000) {
+        throw new Error('File too small, might be corrupted');
+      }
+
+      // PERBAIKAN: Buat Blob baru dengan type yang eksplisit
+      const videoBlob = new Blob([blob], { type: 'video/mp4' });
+      const blobUrl = window.URL.createObjectURL(videoBlob);
+      
       const link = document.createElement('a');
       link.href = blobUrl;
       link.download = filename;
+      link.setAttribute('type', 'video/mp4'); // Eksplisit set type
+      
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      }, 100);
+      
     } catch (err) {
-      console.error("Fallback download", err);
+      console.error("Download error:", err);
+      // Fallback: Buka di tab baru (user bisa download manual)
       window.open(mediaUrl, '_blank');
     } finally {
       setDownloading(null);
@@ -81,7 +109,7 @@ export default function Home() {
         {/* Header */}
         <div className="text-center mb-12">
           <div className="inline-block mb-6 px-3 py-1 border border-[#040f16] rounded-full text-xs font-bold uppercase tracking-wider bg-white">
-            v1.0 • Free X Downloader
+            v1.1 • Compatible Downloads
           </div>
           <h2 className="text-5xl md:text-6xl font-black mb-4 tracking-tight leading-[1.1]">
             Grab the <span className="text-[#b80c09] underline decoration-4 decoration-[#01baef]">Melody</span>.
@@ -114,6 +142,14 @@ export default function Home() {
             </button>
           </div>
         </form>
+
+        {/* Info Banner (Mobile Compatibility) */}
+        <div className="w-full bg-blue-50 border border-blue-200 rounded-lg p-3 mb-8 flex items-start gap-2 text-sm">
+          <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+          <p className="text-blue-800">
+            <strong>Tip:</strong> Jika video tidak bisa dibuka, gunakan <strong>VLC Player</strong> atau <strong>MX Player</strong> di Android.
+          </p>
+        </div>
 
         {/* Error State */}
         <AnimatePresence>
@@ -164,8 +200,9 @@ export default function Home() {
                       {/* Video/Image */}
                       <div className="aspect-video flex items-center justify-center bg-gray-100">
                         {media.type === 'video' ? (
-                          <video controls poster={media.thumbnail} className="w-full h-full object-contain bg-black">
+                          <video controls poster={media.thumbnail} className="w-full h-full object-contain bg-black" preload="metadata">
                             <source src={media.url} type="video/mp4" />
+                            Your browser doesn't support video playback.
                           </video>
                         ) : (
                           <img src={media.url} alt="Media" className="w-full h-full object-cover" />
@@ -176,7 +213,7 @@ export default function Home() {
                       <div className="bg-white border-t-2 border-[#040f16] p-3 flex justify-between items-center">
                         <div className="flex items-center gap-2">
                           <span className="px-2 py-0.5 bg-[#01baef]/20 text-[#0b4f6c] text-xs font-bold uppercase rounded">
-                            {media.type === 'video' ? 'HD Video' : 'Image'}
+                            {media.type === 'video' ? 'MP4 Compatible' : 'Image'}
                           </span>
                         </div>
                         <button 
@@ -203,7 +240,7 @@ export default function Home() {
       </div>
 
       <footer className="py-8 text-center text-sm text-gray-400 border-t border-gray-200">
-        © {new Date().getFullYear()} Do Re Mi. Simple. Fast.
+        © {new Date().getFullYear()} Do Re Mi. Simple. Fast. Compatible.
       </footer>
     </main>
   );
